@@ -1,6 +1,7 @@
-# Redis-Digital-Banking
+# Redisearch-Digital-Banking
 Provides a quick-start example of using Redis with springBoot with Banking structures.  Digital Banking uses an API microservices approach to enable high speed requests for account, customer and transaction information.  As seem below, this data is useful for a variety of business purposes in the bank.
 <a href="" rel="Digital Banking"><img src="images/DigitalBanking.png" alt="" /></a>
+This is the same as Redis-Digital-Banking but will not use any Spring indexes.  Instead redisearch 2.0 indexes will be used
 
 ## Overview
 In this tutorial, a java spring boot application is run through a jar file to support typical API calls to a REDIS banking data layer.  A redis docker configuration is included.
@@ -9,7 +10,7 @@ In this tutorial, a java spring boot application is run through a jar file to su
  * Redis easily handles high write transaction volume
  * Redis has no tombstone issues and can upsert posted transactions over pending
  * Redis scales vertically (large nodes)  and horizontally (many nodes)
- * Redis spring crud reporitory automates secondary index creation and usage
+ * Redisearch automatically indexes 
 
 ## Requirements
 * Docker installed on your local system, see [Docker Installation Instructions](https://docs.docker.com/engine/installation/).
@@ -91,57 +92,3 @@ Shows a benchmark test run of  generateData.sh on GCP servers
   * startAppservers.sh - start multiple app server instances for load testing
   * testPipeline.sh - test pipelining
   * updateTransactionStatus.sh - generate new transactions to move all of one transaction Status up to the next transaction status. Parameter is target status.  Can choose SETTLED or POSTED.  
-## Redis CRUD indexing strategy
-Very exciting that using the CRUD repository, a field in the java class with the Indexed annotation is treated as an index.
-<a href="" rel="Spring Indexes"><img src="images/Springindexes.png" alt="" /></a>
-### User class
-```bash
-@RedisHash("user")
-public class User {
-	private @Id String id;
-	private @Indexed String firstName;
-	private String middleName;
-	private @Indexed String lastName;
-	private String roleName;
-}
-```
-#### hash created with key of user:1
-for a user with an id=1, This is stored in a Hash with a key of user:1
-(this is stored in a hash and not in a json format but displaying in json)
-```json
-{"_class":"com.jphaugla.domain.User","id":"1","firstName":"Jason","middleName":"Paul","lastName":"Haugland","roleName":"CEO"}
-```
-#### Set for each unique key called user:1:idx
-holds all indexed columns with the column value
-Since firstName and lastName are indexed, two elements are added to this set with the key value for each index.  
-```bash
-user:1:idx
-	user:firstName:Jason
-	user:lastName:Haugland
-```
-#### Set with each index value  user:firstName:Jason
-Then user:firstName:Jason is a set holding the user idx of each user with a first name of jason.  User 1 is Jason Haugland so 1 is in the set.  User 2 is Jason Smith so user 2 is in this set.
-```bash
-user:firstName:Jason
-	1
-	2
-```
-#### Set with each index value user:lastName:Haugland 
-Holds the user idx of each user with a last name of Haugland.  User 5 is Caterhine Haugland so user 5 is in this set.
-```bash
-user:lastName:Haugland
-	1
-	5
-```
-#### Set with all the user ids <b>user</b> 
-```bash
-user
-	1
-	2
-	5
-```
-### Query using index columns firstname and Lastname 
-```bash
-SINTER user:firstName:Jason "user:lastName:Haugland"  # returns 1
-HGETALL user:1
-```
