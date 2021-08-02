@@ -193,8 +193,10 @@ public class BankService {
 	private void writeTransaction(Transaction transaction) {
 		transactionRepository.save(transaction);
 		String keyname="Trans:PostDate:" + transaction.getAccountNo();
+		/*
 		if(transaction.getPostingDate() != null) redisTemplate.opsForZSet().add(keyname,
 				transaction.getTranId(), transaction.getPostingDate().getTime());
+		 */
 	}
 	// writeTransaction using crud with Future
 	private CompletableFuture<Integer> writeTransactionFuture(Transaction transaction) throws IllegalAccessException {

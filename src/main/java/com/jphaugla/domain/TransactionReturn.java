@@ -14,5 +14,5 @@ import org.springframework.data.redis.core.index.Indexed;
 public class TransactionReturn {
 
     private @Id String reasonCode;
-    private @Indexed String reasonDescription;
+    private String reasonDescription;
 }

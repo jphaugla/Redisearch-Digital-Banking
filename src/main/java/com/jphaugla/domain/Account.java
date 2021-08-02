@@ -18,14 +18,14 @@ import java.util.Date;
 
 public class Account {
     private @Id String accountNo;
-    private @Indexed String customerId;
+    private String customerId;
     private String accountType;
     private String accountOriginSystem;
-    private @Indexed String accountStatus;
-    private @Indexed String cardNum;
+    private String accountStatus;
+    private String cardNum;
     private Date openDate;
-    private  Date lastUpdated;
-    private  String lastUpdatedBy;
-    private  String createdBy;
+    private Date lastUpdated;
+    private String lastUpdatedBy;
+    private String createdBy;
     private Date createdDate;
 }

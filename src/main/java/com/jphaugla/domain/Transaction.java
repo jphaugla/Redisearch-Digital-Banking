@@ -19,10 +19,10 @@ import java.util.Date;
 
 public class Transaction  {
     private @Id String tranId;
-    private @Indexed String accountNo;
+    private String accountNo;
     // debit or credit
     private String amountType;
-    private @Indexed String merchantAccount;
+    private String merchantAccount;
     private String referenceKeyType;
     private String referenceKeyValue;
     private String originalAmount;
@@ -33,8 +33,8 @@ public class Transaction  {
     private Date settlementDate;
     private Date postingDate;
     //  this is authorized, posted, settled
-    private @Indexed String status   ;
-    private @Indexed String transactionReturn;
+    private String status   ;
+    private String transactionReturn;
     private String location;
 
 }

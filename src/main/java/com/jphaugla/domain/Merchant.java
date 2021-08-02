@@ -13,8 +13,8 @@ import org.springframework.data.redis.core.index.Indexed;
 public class Merchant {
 
     private @Id String name;
-    private @Indexed String categoryCode;
-    private @Indexed String categoryDescription;
-    private @Indexed String state;
-    private @Indexed String countryCode;
+    private String categoryCode;
+    private String categoryDescription;
+    private String state;
+    private String countryCode;
 }

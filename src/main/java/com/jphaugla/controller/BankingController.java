@@ -73,7 +73,7 @@ public class BankingController {
 	@GetMapping("/customerByPhone")
 
 	public Customer getCustomerByPhone(@RequestParam String phoneString) {
-		logger.debug("IN get customerByPhone with phone as " + phoneString);
+		logger.debug("In get customerByPhone with phone as " + phoneString);
 		return bankService.getCustomerByPhone(phoneString);
 	}
 

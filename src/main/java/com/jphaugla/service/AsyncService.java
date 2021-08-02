@@ -45,11 +45,13 @@ public class AsyncService {
     @Async("threadPoolTaskExecutor")
     public CompletableFuture<Integer> writeTransaction(Transaction transaction) {
         transactionRepository.save(transaction);
-        if (transaction.getPostingDate() != null) {
+     /*   if (transaction.getPostingDate() != null) {
             String keyname="Trans:PostDate:" + transaction.getAccountNo();
             redisTemplate.opsForZSet().add(keyname, transaction.getTranId(),
                     transaction.getPostingDate().getTime());
         }
+
+      */
         return CompletableFuture.completedFuture(0);
     }
 
@@ -135,7 +137,7 @@ public class AsyncService {
         //   writes a sorted set to be used as the posted date index
         // logger.info("entering writeAccountTransactions with list size of " + transactionList.size());
         writeTransactionList(transactionList);
-        writePostedDateIndex(transactionList);
+        // writePostedDateIndex(transactionList);
         //   write using redisTemplate
         for (Transaction transaction:transactionList) {
             String hashName = "Transaction:" + transaction.getTranId();
@@ -143,10 +145,12 @@ public class AsyncService {
             String merchantIndexName = "Transaction:merchant:" + transaction.getMerchantAccount();
             String accountIndexName = "Transaction:account:" + transaction.getAccountNo();
             String statusIndexName = "Transaction:status:" + transaction.getStatus();
+            /*
             redisTemplate.opsForSet().add(idxSetName, merchantIndexName, accountIndexName, statusIndexName);
             redisTemplate.opsForSet().add(merchantIndexName, transaction.getTranId());
             redisTemplate.opsForSet().add(accountIndexName, transaction.getTranId());
             redisTemplate.opsForSet().add(statusIndexName, transaction.getTranId());
+             */
         }
         return CompletableFuture.completedFuture(0);
     }
