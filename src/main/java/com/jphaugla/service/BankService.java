@@ -12,10 +12,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jphaugla.data.BankGenerator;
 import com.jphaugla.domain.*;
 import com.jphaugla.repository.*;
+import com.redislabs.lettusearch.StatefulRediSearchConnection;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
@@ -28,6 +30,11 @@ import org.springframework.data.redis.hash.Jackson2HashMapper;
 import org.springframework.data.redis.hash.ObjectHashMapper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+
+import com.redislabs.lettusearch.RediSearchCommands;
+import com.redislabs.lettusearch.SearchResults;
+
 
 
 
@@ -57,8 +64,15 @@ public class BankService {
 	private StringRedisTemplate redisTemplate;
 	@Autowired
 	ObjectMapper objectMapper;
+	@Autowired
+	private StatefulRediSearchConnection<String, String> transactionSearchConnection;
+	@Autowired
+	private StatefulRediSearchConnection<String, String> customerSearchConnection;
 
-
+	@Value("${app.transactionSearchIndexName}")
+	private String transactionSearchIndexName;
+	@Value("${app.customerSearchIndexName}")
+	private String customerSearchIndexName;
 	private static final Logger logger = LoggerFactory.getLogger(BankService.class);
 
 	private long timerSum = 0;
@@ -133,15 +147,21 @@ public class BankService {
 		return returnCust;
 	}
 
-	public List<Customer> getCustomerByStateCity(String state, String city){
+	public SearchResults<String,String> getCustomerByStateCity(String state, String city){
 
-		List<Customer> customerIDList = customerRepository.findByStateAbbreviationAndCity(state, city);
-		return customerIDList;
+		// List<Customer> customerIDList = customerRepository.findByStateAbbreviationAndCity(state, city);
+		RediSearchCommands<String, String> commands = customerSearchConnection.sync();
+		String queryString = "@stateAbbreviation:" + state + " @city:" + city;
+		logger.info("query string is " + queryString);
+		SearchResults<String, String> results = commands.search(customerSearchIndexName, queryString);
+		return results;
 	}
 
-	public List<Customer> getCustomerIdsbyZipcodeLastname(String zipcode, String lastName){
-		List<Customer> customerIDList = customerRepository.findByzipcodeAndLastName(zipcode, lastName);
-		return customerIDList;
+	public SearchResults<String,String> getCustomerIdsbyZipcodeLastname(String zipcode, String lastName){
+		RediSearchCommands<String, String> commands = customerSearchConnection.sync();
+		String queryString = "@zipcode:" + zipcode + " @lastName:" + lastName;
+		SearchResults<String, String> results = commands.search(customerSearchIndexName, queryString);
+		return results;
 	}
 
 	private List<Transaction> getTransactionByStatus(String transactionStatus) throws ExecutionException, InterruptedException {

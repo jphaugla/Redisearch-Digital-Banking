@@ -4,6 +4,7 @@ import io.lettuce.core.ClientOptions;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -34,13 +35,13 @@ import java.util.concurrent.Executor;
 
 @ComponentScan("com.jphaugla")
 public class RedisConfig {
-    @Value("${redisHost:localhost}")
+    @Value("${spring.redis.host}")
     private String redisHost;
-    @Value("${redisPort:6379}")
+    @Value("${spring.redis.port}")
     private int redisPort;
 
     @Bean(destroyMethod = "shutdown")
-    ClientResources clientResources() {
+    ClientResources clientResources2() {
         return DefaultClientResources.create();
     }
 
@@ -57,7 +58,7 @@ public class RedisConfig {
                 .build();
     }
     @Bean
-    LettucePoolingClientConfiguration lettucePoolConfig(ClientOptions options, ClientResources dcr){
+    LettucePoolingClientConfiguration lettucePoolConfig(ClientOptions options, @Qualifier("clientResources2") ClientResources dcr){
         return LettucePoolingClientConfiguration.builder()
                 .poolConfig(new GenericObjectPoolConfig())
                 .clientOptions(options)
@@ -93,7 +94,7 @@ public class RedisConfig {
     public StringRedisTemplate redisTemplate() {
         StringRedisTemplate template = new StringRedisTemplate();
         template.setConnectionFactory(connectionFactory(redisStandaloneConfiguration(),
-                lettucePoolConfig(clientOptions(), clientResources())));
+                lettucePoolConfig(clientOptions(), clientResources2())));
         return template;
     }
     @Bean("threadPoolTaskExecutor")

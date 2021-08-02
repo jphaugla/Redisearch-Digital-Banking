@@ -1,12 +1,12 @@
 package com.jphaugla.controller;
 
-import java.lang.reflect.Array;
 import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import com.jphaugla.domain.*;
 
+import com.redislabs.lettusearch.SearchResults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,13 +87,13 @@ public class BankingController {
 
 	@GetMapping("/customerByStateCity")
 
-	public List<Customer> getCustomerByStateCity(@RequestParam String state, @RequestParam String city) {
+	public SearchResults<String, String> getCustomerByStateCity(@RequestParam String state, @RequestParam String city) {
 		logger.debug("IN get customerByState with state as " + state + " and city=" + city);
 		return bankService.getCustomerByStateCity(state, city);
 	}
 	@GetMapping("/customerByZipcodeLastname")
 
-	public List<Customer> getCustomerIdsbyZipcodeLastname(@RequestParam String zipcode, @RequestParam String lastname) {
+	public SearchResults<String, String> getCustomerIdsbyZipcodeLastname(@RequestParam String zipcode, @RequestParam String lastname) {
 		logger.debug("IN get getCustomerIdsbyZipcodeLastname with zipcode as " + zipcode + " and lastname=" + lastname);
 		return bankService.getCustomerIdsbyZipcodeLastname(zipcode, lastname);
 	}
