@@ -15,40 +15,38 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(6)
 @Slf4j
-public class CustomerIndex implements CommandLineRunner {
+public class MerchantIndex implements CommandLineRunner {
+
 
   @Autowired
   private StatefulRedisModulesConnection<String,String> connection;
 
-  @Value("${app.customerSearchIndexName}")
-  private String customerSearchIndexName;
+  @Value("${app.merchantSearchIndexName}")
+  private String merchantSearchIndexName;
 
   @Override
   @SuppressWarnings({ "unchecked" })
   public void run(String... args) throws Exception {
-    RedisModulesCommands customerCommands = connection.sync();
+    RedisModulesCommands merchantCommands = connection.sync();
     try {
-      customerCommands.indexInfo(customerSearchIndexName);
+      merchantCommands.indexInfo(merchantSearchIndexName);
     } catch (RedisCommandExecutionException rcee) {
       if (rcee.getMessage().equals("Unknown Index name")) {
 
         CreateOptions<String, String> options = CreateOptions.<String, String>builder()//
-            .prefix(customerSearchIndexName + ':').build();
+            .prefix(merchantSearchIndexName + ':').build();
 
-        Field city = Field.text("city").build();
-        Field firstName = Field.text("firstName").build();
-        Field fullName = Field.text("fullName").build();
-        Field lastName = Field.text("lastName").build();
-        Field stateAbbreviation = Field.text("stateAbbreviation").build();
-        Field zipcode = Field.text("zipcode").build();
-
-        customerCommands.create(
-          customerSearchIndexName, //
+        Field merchantName = Field.text("name").build();
+        Field categoryCode = Field.text("categoryCode").build();
+        Field categoryDescription = Field.text("categoryDescription").build();
+        Field merchantState = Field.text("state").build();
+        Field merchantCountry = Field.text("countryCode").build();
+        merchantCommands.create(
+          merchantSearchIndexName, //
           options, //
-                city, firstName, fullName, lastName, stateAbbreviation, zipcode
+                merchantName, categoryCode, categoryDescription, merchantState, merchantCountry
         );
-
-        log.info(">>>> Created " + customerSearchIndexName + " Search Index...");
+        log.info(">>>> Created " + merchantSearchIndexName + " Search Index...");
       }
     }
   }

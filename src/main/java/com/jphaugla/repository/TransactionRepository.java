@@ -1,12 +1,9 @@
 package com.jphaugla.repository;
 
-import com.jphaugla.domain.Account;
-import com.jphaugla.domain.Merchant;
+
 import com.jphaugla.domain.Transaction;
 import org.springframework.data.repository.CrudRepository;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.data.repository.query.Param;
-import org.springframework.data.annotation.QueryAnnotation.*;
+
 
 import java.util.Date;
 import java.util.List;

@@ -1,18 +1,22 @@
 package com.jphaugla.service;
 
-import java.lang.reflect.Field;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.time.Instant;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jphaugla.data.BankGenerator;
 import com.jphaugla.domain.*;
 import com.jphaugla.repository.*;
-import com.redislabs.lettusearch.StatefulRediSearchConnection;
+
+import com.redislabs.mesclun.search.*;
+import com.redislabs.mesclun.StatefulRedisModulesConnection;
+
+import io.lettuce.core.RedisCommandExecutionException;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,22 +25,10 @@ import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.connection.StringRedisConnection;
-import org.springframework.data.redis.connection.lettuce.LettuceConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.hash.HashMapper;
-import org.springframework.data.redis.hash.Jackson2HashMapper;
-import org.springframework.data.redis.hash.ObjectHashMapper;
-import org.springframework.scheduling.annotation.Async;
+
 import org.springframework.stereotype.Service;
-
-
-import com.redislabs.lettusearch.RediSearchCommands;
-import com.redislabs.lettusearch.SearchResults;
-
-
-
 
 
 @Service
@@ -64,15 +56,18 @@ public class BankService {
 	private StringRedisTemplate redisTemplate;
 	@Autowired
 	ObjectMapper objectMapper;
+
 	@Autowired
-	private StatefulRediSearchConnection<String, String> transactionSearchConnection;
-	@Autowired
-	private StatefulRediSearchConnection<String, String> customerSearchConnection;
+	private StatefulRedisModulesConnection<String,String> connection;
 
 	@Value("${app.transactionSearchIndexName}")
 	private String transactionSearchIndexName;
 	@Value("${app.customerSearchIndexName}")
 	private String customerSearchIndexName;
+	@Value("${app.merchantSearchIndexName}")
+	private String merchantSearchIndexName;
+	@Value("${app.accountSearchIndexName}")
+	private String accountSearchIndexName;
 	private static final Logger logger = LoggerFactory.getLogger(BankService.class);
 
 	private long timerSum = 0;
@@ -150,7 +145,7 @@ public class BankService {
 	public SearchResults<String,String> getCustomerByStateCity(String state, String city){
 
 		// List<Customer> customerIDList = customerRepository.findByStateAbbreviationAndCity(state, city);
-		RediSearchCommands<String, String> commands = customerSearchConnection.sync();
+		RediSearchCommands<String, String> commands = connection.sync();
 		String queryString = "@stateAbbreviation:" + state + " @city:" + city;
 		logger.info("query string is " + queryString);
 		SearchResults<String, String> results = commands.search(customerSearchIndexName, queryString);
@@ -158,15 +153,25 @@ public class BankService {
 	}
 
 	public SearchResults<String,String> getCustomerIdsbyZipcodeLastname(String zipcode, String lastName){
-		RediSearchCommands<String, String> commands = customerSearchConnection.sync();
+		RediSearchCommands<String, String> commands = connection.sync();
 		String queryString = "@zipcode:" + zipcode + " @lastName:" + lastName;
 		SearchResults<String, String> results = commands.search(customerSearchIndexName, queryString);
 		return results;
 	}
 
-	private List<Transaction> getTransactionByStatus(String transactionStatus) throws ExecutionException, InterruptedException {
-		List<Transaction> transactions = transactionRepository.findByStatus(transactionStatus);
-		return transactions;
+	private List<String> getTransactionByStatus(String transactionStatus) throws ExecutionException, InterruptedException {
+		RediSearchCommands<String, String> commands = connection.sync();
+		String queryString = "@status:" + transactionStatus;
+		SearchResults<String, String> results = commands.search(transactionSearchIndexName, queryString);
+		// this code snippet get converts results to List of Transaction IDs
+		List<String> transIdList = new ArrayList<String>();
+		for (Document document : results) {
+			String fullKey = (String) document.getId();
+			String onlyID = fullKey.replace(transactionSearchIndexName + ':', "");
+			transIdList.add(onlyID);
+			logger.warn("adding to transaction list string=" + onlyID + " fullKey is " + fullKey);
+		}
+		return transIdList;
 	}
 
 	public Transaction getTransaction(String transactionID) {
@@ -183,40 +188,52 @@ public class BankService {
 		//  move target from authorized->settled->posted
 		logger.info("transactionStatusChange targetStatus is " + targetStatus);
 		BankGenerator.Timer transTimer = new BankGenerator.Timer();
-		List<Transaction> transactions = new ArrayList<>();
+		SearchResults<String, String>  documents;
 		CompletableFuture<Integer> transaction_cntr = null;
-		// Transaction targetTransaction = new Transaction();
-		Date newDate = new Date();
+		List<String> transIdList = new ArrayList<String>();
+		long unixTime = Instant.now().getEpochSecond();
+		String stringUnixTime=String.valueOf(unixTime);
 		if(targetStatus.equals("POSTED")) {
-			transactions = getTransactionByStatus("SETTLED");
-			logger.info("number of transactions in SETTLED " + transactions.size());
-			for(Transaction transaction: transactions) {
-				transaction.setStatus(targetStatus);
-				transaction.setPostingDate(newDate);
-				transaction_cntr = writeTransactionFuture(transaction);
-			}
+			transIdList = getTransactionByStatus("SETTLED");
 		} else {
-			transactions = getTransactionByStatus("AUTHORIZED");
-			logger.info("number of transactions in AUTHORIZED " + transactions.size());
-			for(Transaction transaction: transactions) {
-				transaction.setStatus(targetStatus);
-				transaction.setSettlementDate(newDate);
-				transaction_cntr = writeTransactionFuture(transaction);
+			transIdList = getTransactionByStatus("AUTHORIZED");
+		}
+		logger.info("number of transactions  " + transIdList.size());
+
+		for(String tranID: transIdList) {
+			redisTemplate.opsForHash().put(transactionSearchIndexName + ':' + tranID,"status", targetStatus);
+			if(targetStatus.equals("POSTED")) {
+				redisTemplate.opsForHash().put(transactionSearchIndexName + ':' + tranID, "postingDate", stringUnixTime);
+			} else {
+				redisTemplate.opsForHash().put(transactionSearchIndexName + ':' + tranID, "settlementDate", stringUnixTime);
 			}
 		}
 		transaction_cntr.get();
 		transTimer.end();
-		logger.info("Finished updating " + transactions.size() + " transactions in " +
+		logger.info("Finished updating " + transIdList.size() + " transactions in " +
 				transTimer.getTimeTakenSeconds() + " seconds.");
+	}
+	public String getDateToFromQueryString(Date startDate, Date endDate) throws ParseException {
+		/* Date toDate = new SimpleDateFormat("MM/dd/yyyy").parse(to);
+		Date fromDate = new SimpleDateFormat("MM/dd/yyyy").parse(from);
+		 */
+		Long startUnix = startDate.getTime();
+		Long endUnix = endDate.getTime();
+		return " @postingDate:[" + startUnix + " " + endUnix + "]";
+	}
+
+	public String getDateFullDayQueryString(String stringDate) throws ParseException {
+		Date inDate = new SimpleDateFormat("MM/dd/yyyy").parse(stringDate);
+		Long inUnix = inDate.getTime();
+		//  since the transaction ID is also in the query can take a larger reach around the date column
+		Long startUnix = inUnix - 86400*1000;
+		Long endUnix = inUnix + 86400*1000;
+		return " @postingDate:[" + startUnix + " " + endUnix + "]";
 	}
 	//   writeTransaction using crud without future
 	private void writeTransaction(Transaction transaction) {
+		logger.info("writing a transaction " + transaction);
 		transactionRepository.save(transaction);
-		String keyname="Trans:PostDate:" + transaction.getAccountNo();
-		/*
-		if(transaction.getPostingDate() != null) redisTemplate.opsForZSet().add(keyname,
-				transaction.getTranId(), transaction.getPostingDate().getTime());
-		 */
 	}
 	// writeTransaction using crud with Future
 	private CompletableFuture<Integer> writeTransactionFuture(Transaction transaction) throws IllegalAccessException {
@@ -227,85 +244,86 @@ public class BankService {
 		return transaction_cntr;
 	}
 
-	public List<Transaction> getMerchantCategoryTransactions(String in_merchantCategory, String account,
-															 Date startDate, Date endDate)
-			throws ParseException {
-		List <String> transactionIDs = new ArrayList<>();
-		List <Transaction> transactions = new ArrayList<>();
-		logger.info("merchant is " + in_merchantCategory + " and account is " + account);
-		List<Merchant> merchants = merchantRepository.findByCategoryCode(in_merchantCategory);
-		for(Merchant merchant:merchants) {
-			transactions.addAll(getMerchantTransactions(merchant.getName(), account, startDate, endDate));
-		}
-		return transactions;
-	}
-
-	public List<Transaction> getMerchantTransactions(String in_merchant, String account, Date startDate, Date endDate)
-			throws ParseException {
-		logger.info("merchant is " + in_merchant + " and account is " + account);
-		List <String> transactionIDs = new ArrayList<>();
-		List <Transaction> transactions = new ArrayList<>();
-
-		String merchantAccountKeyName = "Transaction:merchantAccount" + ":" + in_merchant + ":" +account;
-		logger.info(" merchantkey is " + merchantAccountKeyName);
-		if(redisTemplate.hasKey(merchantAccountKeyName)) {
-			logger.info("found the merchant");
-		}
-
-        String keyName = "Trans:PostDate:" + account;
-		Set resultSet = redisTemplate.opsForSet().intersect(merchantAccountKeyName,
-					redisTemplate.opsForZSet().range(keyName,startDate.getTime(),endDate.getTime()));
-		transactionIDs.addAll(resultSet);
-		logger.info("result set returned:", resultSet.size());
-		transactions = (List<Transaction>) transactionRepository.findAllById(transactionIDs);
-		return transactions;
-	};
-	public List<Transaction> getAccountTransactions(String account, Date startDate, Date endDate)
-			throws ParseException {
-		logger.info("account is " + account);
-		List <Transaction> transactions = new ArrayList<>();
-
-		String accountKey = "Transaction:accountNo:" + account;
-		logger.info("accountKey is " + accountKey );
-		if (redisTemplate.hasKey(accountKey)) {
-			logger.info("found the account");
-			transactions = getAccountsByDateRange(accountKey, startDate, endDate);
-		}
-		return transactions;
-	};
-	private List<Transaction> getAccountsByDateRange(String accountKey, Date startDate, Date endDate) {
-		List <String> transactionIDs = new ArrayList<>();
-		List <Transaction> transactions = new ArrayList<>();
-		String keyName = "Trans:PostDate:" + accountKey;
-		Set resultSet = redisTemplate.opsForSet().intersect(accountKey,
-				redisTemplate.opsForZSet().range(keyName, startDate.getTime(), endDate.getTime()));
-		transactionIDs.addAll(resultSet);
-		logger.info("result set returned:", resultSet.size());
-		transactions = (List<Transaction>) transactionRepository.findAllById(transactionIDs);
-		return transactions;
-	}
-
-	public List<Transaction> getCreditCardTransactions(String creditCard, Date startDate, Date endDate)
-			throws ParseException {
-		logger.info("credit card is " + creditCard + " start is " + startDate + " end is " + endDate);
-		//  get the account for this credit card
-		List <Transaction> transactions = new ArrayList<>();
-		List<Account> accounts = accountRepository.getAccountsByCardNum(creditCard);
-		logger.info("number of accounts for credit card is " + accounts.size());
-		if(accounts.size() > 0) {
-
-			if (accounts.size() != 1) {
-				logger.info("Should not be same card for multiple account card=" + creditCard);
-				for (Account account : accounts) {
-					logger.info("Account is" + account.getAccountNo());
-				}
+	public SearchResults<String,String> getMerchantCategoryTransactions(String in_merchantCategory, String account,
+															 Date startDate, Date endDate) throws ParseException, RedisCommandExecutionException {
+		RediSearchCommands<String, String> commands = connection.sync();
+		String queryString = "@categoryCode:" + in_merchantCategory;
+		SearchResults<String, String> merchantResults = commands.search(merchantSearchIndexName, queryString);
+		SearchResults<String, String> transactionResults = null;
+		//  result set has all merchants with a category code
+		//  build a query to match any of these merchants
+		if(merchantResults.getCount() > 0) {
+			int i = 0;
+			String merchantListQueryString = "@merchant:(";
+			for (Document document : merchantResults) {
+				if (i > 0) merchantListQueryString = merchantListQueryString + "|";
+				String merchantKey = (String) document.getId();
+				String onlyID = merchantKey.replace(merchantSearchIndexName + ':', "");
+				merchantListQueryString = merchantListQueryString + onlyID;
+				i += 1;
 			}
-			String accountKey = "Transaction:accountNo:" + accounts.get(0).getAccountNo();
-			logger.info("accountKey is " + accountKey);
-			transactions = getAccountsByDateRange( accountKey, startDate, endDate);
+			merchantListQueryString = merchantListQueryString + ')';
+			logger.info("merchanListQueryString is " + merchantListQueryString);
+			String tofromQuery = getDateToFromQueryString(startDate, endDate);
+			queryString = "@accountNo:" + account + " " + merchantListQueryString + tofromQuery;
+			logger.info("queryString is " + queryString);
+			transactionResults = commands.search(transactionSearchIndexName, queryString);
 		}
-		return transactions;
+		return transactionResults;
+	}
 
+	public SearchResults<String,String> getMerchantTransactions (String in_merchant, String account, Date startDate, Date endDate)
+			throws ParseException, RedisCommandExecutionException {
+		logger.info("in getMerchantTransactions merchant is " + in_merchant + " and account is " + account);
+		logger.info("startdate is " + startDate + " endDate is" + endDate);
+		RediSearchCommands<String, String> commands = connection.sync();
+		String tofromQuery = getDateToFromQueryString(startDate, endDate);
+		String queryString = "@merchantAccount:" + in_merchant + " @accountNo:" + account + tofromQuery;
+		logger.info("query is " + queryString);
+		SearchResults<String, String> merchantResults = commands.search(transactionSearchIndexName, queryString);
+
+		return merchantResults;
+	};
+	public SearchResults<String,String> getAccountTransactions(String account, Date startDate, Date endDate)
+			throws ParseException, RedisCommandExecutionException {
+		logger.info("in getAccountTransactions account is " + account);
+		logger.info("startdate is " + startDate + " endDate is" + endDate);
+		RediSearchCommands<String, String> commands = connection.sync();
+		String tofromQuery = getDateToFromQueryString(startDate, endDate);
+		String queryString = "@accountNo:" + account + tofromQuery;
+		logger.info("query is " + queryString);
+		SearchResults<String, String> accountResults = commands.search(transactionSearchIndexName, queryString);
+
+		return accountResults;
+	};
+
+	public SearchResults<String, String> getCreditCardTransactions(String creditCard, Date startDate, Date endDate)
+			throws ParseException, RedisCommandExecutionException {
+		logger.info("credit card is " + creditCard + " start is " + startDate + " end is " + endDate);
+		RediSearchCommands<String, String> commands = connection.sync();
+		SearchResults<String, String> transactionResults = null;
+		String queryString = "@cardNum:" + creditCard;
+		SearchResults<String, String> accountResults = commands.search(accountSearchIndexName, queryString);
+		//  result set has all accounts with a credit card
+		//  build a query to match any of these merchants
+		if(accountResults.getCount() > 0) {
+			int i = 0;
+			String accountListQueryString = "@accountNo:(";
+			for (Document document : accountResults) {
+				if (i > 0) accountListQueryString = accountListQueryString + "|";
+				String merchantKey = (String) document.getId();
+				String onlyID = merchantKey.replace(accountSearchIndexName + ':', "");
+				accountListQueryString = accountListQueryString + onlyID;
+				i += 1;
+			}
+			accountListQueryString = accountListQueryString + ')';
+			logger.info("accountListQueryString is " + accountListQueryString);
+			String tofromQuery = getDateToFromQueryString(startDate, endDate);
+			queryString = accountListQueryString + tofromQuery;
+			logger.info("queryString is " + queryString);
+			transactionResults = commands.search(transactionSearchIndexName, queryString);
+		}
+		return transactionResults;
 	};
 
 
@@ -347,7 +365,7 @@ public class BankService {
 	}
 
 
-	public void saveSampleCustomer() throws ParseException {
+	public void saveSampleCustomer() throws ParseException, RedisCommandExecutionException {
 		Date create_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.28");
 		Date last_update = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.29");
 		String cust = "cust0001";
@@ -371,7 +389,7 @@ public class BankService {
 		);
 		customerRepository.save(customer);
 	}
-	public void saveSampleAccount() throws ParseException {
+	public void saveSampleAccount() throws ParseException, RedisCommandExecutionException {
 		Date create_date = new SimpleDateFormat("yyyy.MM.dd").parse("2010.03.28");
 		Account account = new Account("cust001", "acct001",
 				"credit", "teller", "active",
@@ -379,13 +397,14 @@ public class BankService {
 				null, null, null, null);
 		accountRepository.save(account);
 	}
-	public void saveSampleTransaction() throws ParseException {
+	public void saveSampleTransaction() throws ParseException, RedisCommandExecutionException {
 		Date settle_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.28");
 		Date post_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.28");
 		Date init_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.27");
 
 		Merchant merchant = new Merchant("Cub Foods", "5411",
 				"Grocery Stores", "MN", "US");
+		logger.info("before save merchant");
 		merchantRepository.save(merchant);
 
 		Transaction transaction = new Transaction("1234", "acct01",
@@ -393,6 +412,7 @@ public class BankService {
 				"referenceKeyValue", "323.23",  "323.22", "1631",
 				"Test Transaction", init_date, settle_date, post_date,
 				"POSTED", null, "ATM665");
+		logger.info("before save transaction");
 		writeTransaction(transaction);
 	}
 
@@ -457,7 +477,7 @@ public class BankService {
 
 	public  String generateData(Integer noOfCustomers, Integer noOfTransactions, Integer noOfDays,
 								String key_suffix, Boolean pipelined)
-			throws ParseException, ExecutionException, InterruptedException, IllegalAccessException {
+			throws ParseException, ExecutionException, InterruptedException, IllegalAccessException, RedisCommandExecutionException {
 
 		List<Account> accounts = createCustomerAccount(noOfCustomers, key_suffix);
 		BankGenerator.date = new DateTime().minusDays(noOfDays).withTimeAtStartOfDay();
@@ -517,7 +537,7 @@ public class BankService {
 		return returnVal;
 	}
 
-	private  List<Account> createCustomerAccount(int noOfCustomers, String key_suffix) throws ExecutionException, InterruptedException {
+	private  List<Account> createCustomerAccount(int noOfCustomers, String key_suffix) throws ExecutionException, InterruptedException, RedisCommandExecutionException {
 
 		logger.info("Creating " + noOfCustomers + " customers with accounts and suffix " + key_suffix);
 		BankGenerator.Timer custTimer = new BankGenerator.Timer();
@@ -532,7 +552,9 @@ public class BankService {
 		int totalAccounts = 0;
 		int totalEmails = 0;
 		int totalPhone = 0;
+		logger.info("before the big for loop");
 		for (int i=0; i < noOfCustomers; i++){
+			logger.info("int noOfCustomer for loop i=" + i);
 			Customer customer = BankGenerator.createRandomCustomer(key_suffix);
 			for (PhoneNumber phoneNumber : phoneNumbers = customer.getCustomerPhones()) {
 				phone_cntr = asyncService.writePhone(phoneNumber);
@@ -552,7 +574,7 @@ public class BankService {
 				allAccounts.addAll(accounts);
 			}
 		}
-
+		logger.info("before the gets");
 		account_cntr.get();
 		customer_cntr.get();
 		email_cntr.get();

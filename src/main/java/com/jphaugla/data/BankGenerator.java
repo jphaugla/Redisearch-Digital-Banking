@@ -207,8 +207,7 @@ public class BankGenerator {
         else{
             transaction.setAmountType("Credit");
         }
-        transaction.setMerchantAccount(merchants.get(randomLocation).getName() + ":"
-				+ transaction.getAccountNo());
+        transaction.setMerchant(merchants.get(randomLocation).getName());
 
         transaction.setReferenceKeyType("reftype");
         transaction.setReferenceKeyValue("thisRef");

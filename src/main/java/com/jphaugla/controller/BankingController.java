@@ -6,7 +6,7 @@ import java.util.concurrent.ExecutionException;
 
 import com.jphaugla.domain.*;
 
-import com.redislabs.lettusearch.SearchResults;
+import com.redislabs.mesclun.search.SearchResults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,7 +99,7 @@ public class BankingController {
 	}
 	@GetMapping("/merchantCategoryTransactions")
 
-	public List<Transaction> getMerchantCategoryTransactions
+	public SearchResults<String,String> getMerchantCategoryTransactions
 			(@RequestParam String merchantCategory, @RequestParam String account,
 			 @RequestParam(name = "from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
 			 @RequestParam(name = "to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate)
@@ -110,12 +110,12 @@ public class BankingController {
 	}
 	@GetMapping("/merchantTransactions")
 
-	public List<Transaction> getMerchantTransactions
+	public SearchResults<String,String> getMerchantTransactions
 			(@RequestParam String merchant, @RequestParam String account,
 			 @RequestParam(name = "from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
 			 @RequestParam(name = "to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate)
 				throws ParseException {
-		logger.debug("In getMerchantTransactions merchant=" + merchant + " account=" + account +
+		logger.info("In getMerchantTransactions merchant=" + merchant + " account=" + account +
 				" from=" + startDate + " to=" + endDate);
 		return bankService.getMerchantTransactions(merchant, account, startDate, endDate);
 	}
@@ -151,30 +151,27 @@ public class BankingController {
 
 	@GetMapping("/creditCardTransactions")
 
-	public List<Transaction> getCreditCardTransactions
+	public SearchResults<String, String> getCreditCardTransactions
 			(@RequestParam String creditCard,
 			 @RequestParam(name = "from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
 			 @RequestParam(name = "to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate)
 			throws ParseException {
 		logger.debug("getCreditCardTransactions creditCard=" + creditCard +
 				" startDate=" + startDate + " endDate=" + endDate);
-		List<Transaction> transactions = new ArrayList<>();
-		transactions = bankService.getCreditCardTransactions(creditCard, startDate, endDate);
-		return transactions;
+		return bankService.getCreditCardTransactions(creditCard, startDate, endDate);
 	}
 
 	@GetMapping("/accountTransactions")
 
-	public List<Transaction> getAccountTransactions
+	public SearchResults<String, String>  getAccountTransactions
 			(@RequestParam String accountNo,
 			 @RequestParam(name = "from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
 			 @RequestParam(name = "to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate)
 			throws ParseException {
 		logger.debug("getCreditCardTransactions creditCard=" + accountNo +
 				" startDate=" + startDate + " endDate=" + endDate);
-		List<Transaction> transactions = new ArrayList<>();
-		transactions = bankService.getAccountTransactions(accountNo, startDate, endDate);
-		return transactions;
+		return bankService.getAccountTransactions(accountNo, startDate, endDate);
+
 	}
 
 

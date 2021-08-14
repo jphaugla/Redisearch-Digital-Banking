@@ -1,10 +1,8 @@
 package com.jphaugla.boot;
 
-import com.jphaugla.domain.Transaction;
-import com.redislabs.lettusearch.CreateOptions;
-import com.redislabs.lettusearch.Field;
-import com.redislabs.lettusearch.RediSearchCommands;
-import com.redislabs.lettusearch.StatefulRediSearchConnection;
+import com.redislabs.mesclun.search.*;
+import com.redislabs.mesclun.StatefulRedisModulesConnection;
+import com.redislabs.mesclun.RedisModulesCommands;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,32 +21,44 @@ import lombok.extern.slf4j.Slf4j;
 public class TransactionIndex implements CommandLineRunner {
 
   @Autowired
-  private StatefulRediSearchConnection<String, String> transactionSearchConnection;
+  private StatefulRedisModulesConnection<String,String> connection;
 
   @Value("${app.transactionSearchIndexName}")
   private String transactionSearchIndexName;
 
+
   @Override
   @SuppressWarnings({ "unchecked" })
   public void run(String... args) throws Exception {
-    RediSearchCommands<String, String> commands = transactionSearchConnection.sync();
+
+    RedisModulesCommands transactionCommands = connection.sync();
+
     try {
-      commands.ftInfo(transactionSearchIndexName);
+      transactionCommands.indexInfo(transactionSearchIndexName);
     } catch (RedisCommandExecutionException rcee) {
       if (rcee.getMessage().equals("Unknown Index name")) {
 
         CreateOptions<String, String> options = CreateOptions.<String, String>builder()//
             .prefix(transactionSearchIndexName + ':').build();
 
-        Field<String> accountNo = Field.text("accountNo").build();
-        Field<String> merchantAccount = Field.text("merchantAccount").build();
-        Field<String> status = Field.text("status").build();
-        Field<String> transactionReturn = Field.text("transactionReturn").build();
+        Field accountNo = Field.text("accountNo").build();
+        Field amountType = Field.text("amountType").build();
+        Field merchantAccount = Field.text("merchant").build();
+        Field status = Field.text("status").build();
+        Field description = Field.text("description").build();
+        Field referenceKeyType = Field.text("referenceKeyType").build();
+        Field referenceValue = Field.text("referenceValue").build();
+        Field tranCd = Field.text("tranCd").build();
+        Field location = Field.text("location").build();
+        Field transactionReturn = Field.text("transactionReturn").build();
+        Field initialDate = Field.numeric("initialDate").sortable(true).build();
+        Field settlementDate = Field.numeric("settlementDate").sortable(true).build();
+        Field postingDate = Field.numeric("postingDate").sortable(true).build();
 
-        commands.create(
+         transactionCommands.create(
           transactionSearchIndexName, //
           options, //
-                accountNo, merchantAccount, status, transactionReturn
+                 accountNo, amountType, merchantAccount, status, description, referenceKeyType, tranCd, location, transactionReturn, referenceValue, initialDate, settlementDate, postingDate
         );
 
         log.info(">>>> Created " + transactionSearchIndexName + " Search Index...");
