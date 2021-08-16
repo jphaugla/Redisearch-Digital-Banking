@@ -36,5 +36,6 @@ public class Transaction  {
     private String status   ;
     private String transactionReturn;
     private String location;
+    private String transactionTags;
 
 }

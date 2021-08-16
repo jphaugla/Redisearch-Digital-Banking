@@ -177,16 +177,25 @@ public class BankingController {
 
 	@GetMapping("/addTag")
 
-	public void addTag(@RequestParam String transactionID, @RequestParam String accountNo,
+	public void addTag(@RequestParam String transactionID,
 					   @RequestParam String tag, @RequestParam String operation) {
-		bankService.addTag(transactionID, accountNo, tag, operation);
+		logger.debug("addTags with transactionID=" + transactionID + " tag is " + tag + " operation is " + operation);
+		bankService.addTag(transactionID, tag, operation);
 	}
 
 	@GetMapping("/getTags")
-	public HashMap <String, String> getAccountTagList(@RequestParam String accountNo) {
-		HashMap<String, String> accountTransactionHash = new HashMap<>();
-		accountTransactionHash.putAll(bankService.getAccountTagList(accountNo));
-		return accountTransactionHash;
+	public HashSet <String> getTransactionTagList(@RequestParam String transactionID) {
+		logger.debug("getTags with transactionID=" + transactionID);
+		return bankService.getTransactionTagList(transactionID);
+	}
+
+	@GetMapping("/getTaggedTransactions")
+
+	public SearchResults<String,String> getTaggedTransactions
+			(@RequestParam String accountNo, @RequestParam String tag)
+			throws ParseException {
+		logger.debug("In getTaggedTransactions accountNo=" + accountNo + " tag=" + tag );
+		return bankService.getTaggedTransactions(accountNo, tag);
 	}
 	@GetMapping("/getTransaction")
 	public Transaction getTransaction(@RequestParam String transactionID) {

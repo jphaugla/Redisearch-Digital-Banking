@@ -398,9 +398,9 @@ public class BankService {
 		accountRepository.save(account);
 	}
 	public void saveSampleTransaction() throws ParseException, RedisCommandExecutionException {
-		Date settle_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.28");
-		Date post_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.28");
-		Date init_date = new SimpleDateFormat("yyyy.MM.dd").parse("2020.03.27");
+		Date settle_date = new SimpleDateFormat("yyyy.MM.dd").parse("2021.07.28");
+		Date post_date = new SimpleDateFormat("yyyy.MM.dd").parse("2021.07.28");
+		Date init_date = new SimpleDateFormat("yyyy.MM.dd").parse("2021.07.27");
 
 		Merchant merchant = new Merchant("Cub Foods", "5411",
 				"Grocery Stores", "MN", "US");
@@ -411,46 +411,49 @@ public class BankService {
 				"Debit", merchant.getName() + ":" + "acct01", "referenceKeyType",
 				"referenceKeyValue", "323.23",  "323.22", "1631",
 				"Test Transaction", init_date, settle_date, post_date,
-				"POSTED", null, "ATM665");
+				"POSTED", null, "ATM665", "Outdoor");
 		logger.info("before save transaction");
 		writeTransaction(transaction);
 	}
 
-	public void addTag(String transactionID, String accountNo, String tag, String operation) {
-		// hold set of tags used on an account
-		String accountTags = "AccountTags:" + accountNo;
+	public void addTag(String transactionID, String tag, String operation) {
+		logger.info("in addTag with transID=" + transactionID + " and tag " + tag);
 		// hold set of transactions for a tag on an account
-		String tagKeyName = accountTags + ":tag:" + tag;
+		String transactionKey = transactionSearchIndexName + ":" + transactionID;
+		HashSet<String> tagHash = getTransactionTagList(transactionID);
 
 		if(operation.equals("ADD")) {
-			redisTemplate.opsForSet().add(tagKeyName,transactionID);
-			redisTemplate.opsForSet().add(accountTags,tag);
+			tagHash.add(tag);
 		}
 		else {
-			redisTemplate.opsForSet().remove(tagKeyName,transactionID);
+			tagHash.remove(tag);
 		}
+		String tagDelimitedString = String.join(":", tagHash);
+		redisTemplate.opsForHash().put(transactionKey,"transactionTags",tagDelimitedString);
 	}
 
-	public HashMap <String, String> getAccountTagList(String accountNo) {
-		String accountTags = "AccountTags:" + accountNo;
+	public HashSet <String> getTransactionTagList(String transactionID) {
+		logger.info("in getTransactionTagList with transactionID=" + transactionID);
 		// hold set of transactions for a tag on an account
-		String tagKeyName = null;
-		HashMap <String, String> tagHashMap = new HashMap<>();
-
-		Set<String> returnAccountTags = redisTemplate.opsForSet().members(accountTags);
-		if(returnAccountTags != null) {
-			logger.info("found account tag for " + accountTags + " with returnAccountTags " + returnAccountTags);
-			for (String tag : returnAccountTags) {
-				tagKeyName = accountTags + ":tag:" + tag;
-				logger.info("tagkeyname is " + tagKeyName);
-				Set<String> transactionIDList = redisTemplate.opsForSet().members(tagKeyName);
-				logger.info("found list " + transactionIDList);
-				for (String transactionID : transactionIDList) {
-					tagHashMap.put(tag, transactionID);
-				}
-			}
+		String transactionKey = transactionSearchIndexName + ":" + transactionID;
+		String existingTags = (String) redisTemplate.opsForHash().get(transactionKey,"transactionTags");
+		HashSet <String> tagHash = new HashSet<String>();
+		if (existingTags != null) {
+			String[] tagArray = existingTags.split(":");
+			List<String> tagList = Arrays.asList(tagArray);
+			tagHash = new HashSet<String>(tagList);
 		}
-		return tagHashMap;
+		return tagHash;
+	}
+
+	public  SearchResults<String, String> getTaggedTransactions(String accountNo, String tag) {
+		logger.info("in getTaggedTransactions with accountNo=" + accountNo + " and tag " + tag);
+		RediSearchCommands<String, String> commands = connection.sync();
+		String queryString = "@accountNo:" + accountNo + " @transactionTags:{" + tag + "}";
+		logger.info("query is " + queryString);
+		SearchResults<String, String> accountResults = commands.search(transactionSearchIndexName, queryString);
+
+		return accountResults;
 	}
 
 	public String testPipeline(Integer noOfRecords) {
