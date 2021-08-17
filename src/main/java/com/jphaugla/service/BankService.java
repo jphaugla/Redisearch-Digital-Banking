@@ -172,7 +172,7 @@ public class BankService {
 			String fullKey = (String) document.getId();
 			String onlyID = fullKey.replace(transactionSearchIndexName + ':', "");
 			transIdList.add(onlyID);
-			logger.warn("adding to transaction list string=" + onlyID + " fullKey is " + fullKey);
+			// logger.warn("adding to transaction list string=" + onlyID + " fullKey is " + fullKey);
 		}
 		return transIdList;
 	}
