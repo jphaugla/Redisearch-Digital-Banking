@@ -6,19 +6,18 @@ This is the same as Redis-Digital-Banking but will not use any Spring indexes.  
 ## Overview
 In this tutorial, a java spring boot application is run through a jar file to support typical API calls to a REDIS banking data layer.  A redis docker configuration is included.
 
-## Redis Advantages for this Digital Banking
+## Redis Advantages for Digital Banking
  * Redis easily handles high write transaction volume
  * Redis has no tombstone issues and can upsert posted transactions over pending
- * Redis scales vertically (large nodes)  and horizontally (many nodes)
- * Redisearch automatically indexes 
+ * Redis Enterprise scales vertically (large nodes)  and horizontally (many nodes)
+ * Redisearch 2.0 automatically indexes the hash structure created by Spring Java CRUD repository
 
 ## Requirements
 * Docker installed on your local system, see [Docker Installation Instructions](https://docs.docker.com/engine/installation/).
-
+* Alternatively, can run Redis Enterprise and set the redis host and port in the application.properties file
 * When using Docker for Mac or Docker for Windows, the default resources allocated to the linux VM running docker are 2GB RAM and 2 CPU's. Make sure to adjust these resources to meet the resource requirements for the containers you will be running. More information can be found here on adjusting the resources allocated to docker.
 
 [Docker for mac](https://docs.docker.com/docker-for-mac/#advanced)
-
 [Docker for windows](https://docs.docker.com/docker-for-windows/#advanced)
 
 ## Links that help!
@@ -29,11 +28,36 @@ In this tutorial, a java spring boot application is run through a jar file to su
  * [spring data Reference in domain](https://github.com/spring-projects/spring-data-examples/blob/master/redis/repositories/src/main/java/example/springdata/redis/repositories/Person.java)
  * [spring data reference test code](https://github.com/spring-projects/spring-data-examples/blob/master/redis/repositories/src/test/java/example/springdata/redis/repositories/PersonRepositoryTests.java)
  * [spring async tips](https://dzone.com/articles/effective-advice-on-spring-async-part-1)
+ * [brewdis sample application](https://github.com/redis-developer/brewdis)
+ * [redis-developer lettucemod mesclun](https://github.com/redis-developer/lettucemod)
+
+
+## Technical Overview
+
+This github java code uses the mesclun library for redis modules.  The mesclun library supports RediSearch, RedisGears, and RedisTimeSeries.  The original github only used spring java without redisearch.  That repository is still intact at [this github location](https://github.com/jphaugla/Redis-Digital-Banking)
+All of the Spring Java indexes have been removed in this version.
+
+### The spring java code
+This is basic spring links
+* [Spring Redis](https://docs.spring.io/spring-data/data-redis/docs/current/reference/html/#redis.repositories.indexes) 
+* *boot*-Contains index creation for each of the four redisearch indexes used in this solution:  Account, Customer, Merchant, and Transaction
+* *config*-Initial configuration module using autoconfiguration and a threadpool sizing to adjust based on machine size
+* *controller*-http API call interfaces
+* *data*-code to generate POC type of customer, account, and transaction code
+* *domain*-has each of the java objects with their columns.  Enables all the getter/setter methods
+* *repository*-has CRUD repository definitions.  With transition to redisearch 2.0, not used as heavily as previously
+* *service*-asyncservice and bankservice doing the interaction with redis
+### 
+The java code demonstrates common API actions with the data layer in REDIS.  The java spring Boot framework minimizes the amount of code to build and maintain this solution.  Maven is used to build the java code and the code is deployed to the tomcat server.
+
+### Data Structures in use
+<a href="" rel="Tables Structures Used"><img src="images/Tables.png" alt="" /></a>
+
 ## Getting Started
 1. Prepare Docker environment-see the Prerequisites section above...
 2. Pull this github into a directory
 ```bash
-git clone https://github.com/jphaugla/Redis-Digital-Banking.git
+git clone https://github.com/jphaugla/Redisearch-Digital-Banking.git
 ```
 3. Refer to the notes for redis Docker images used but don't get too bogged down as docker compose handles everything except for a few admin steps on tomcat.
  * [https://hub.docker.com/r/bitnami/redis/](https://hub.docker.com/r/bitnami/redis/)  
@@ -42,15 +66,6 @@ git clone https://github.com/jphaugla/Redis-Digital-Banking.git
 docker-compose up -d
 ```
 
-
-## The spring java code
-This is basic spring links
- * [Spring Redis](https://docs.spring.io/spring-data/data-redis/docs/current/reference/html/#redis.repositories.indexes)
-
-The java code demonstrates common API actions with the data persisted in REDIS.  The java spring Boot framework mminimizes the amount of code to build and maintain this solution.  Maven is used to build the java code and the code is deployed to the tomcat server.
-
-## Data Structures in use
-<a href="" rel="Tables Structures Used"><img src="images/Tables.png" alt="" /></a>
 ## To execute the code
 (Alternatively, this can be run through intelli4j)
 
@@ -66,12 +81,13 @@ java -jar target/redis-0.0.1-SNAPSHOT.jar
 ```bash
 ./scripts/generateData.sh
 ```
-Shows a benchmark test run of  generateData.sh on GCP servers
+Shows a benchmark test run of  generateData.sh on GCP servers.  Although, this test run is using redisearch 1.0 code base.  Need to rerun this test.
 <a href="" rel="Generate Data Benchmark"><img src="images/Benchmark.png" alt="" /></a>
 
 4.  Investigate the APIs in ./scripts
   * addTag.sh - add a tag to a transaction.  Tags allow user to mark  transactions to be in a buckets such as Travel or Food for budgetary tracking purposes
-  * generateLots.sh - for server testing to generate higher load levels.  Use with startAppservers.sh 
+  * generateData.sh - simple API to generate default customer, accounts, merchants, phone numbers, emails and transactions
+  * generateLots.sh - for server testing to generate higher load levels.  Use with startAppservers.sh.  Not for use with docker setup.  This is load testing with redis enterprise and client application running in same network in the cloud.
   * getByAccount.sh - find transactions for an account between a date range
   * getByCreditCard.sh - find transactions for a credit card  between a date range
   * getByCustID.sh - retrieve transactions for customer
@@ -84,6 +100,7 @@ Shows a benchmark test run of  generateData.sh on GCP servers
   * getByZipLastname.sh -  get customers by zipcode and lastname.
   * getReturns.sh - get returned transactions count by reason code
   * getTags.sh - get all tags on an account
+  * getTaggedAccountTransactions.sh - find transactions for an account with a particular tag
   * getTransaction.sh - get one transaction by its transaction ID
   * getTransactionStatus.sh - see count of transactions by account status of PENDING, AUTHORIZED, SETTLED
   * saveAccount.sh - save a sample account
@@ -91,4 +108,4 @@ Shows a benchmark test run of  generateData.sh on GCP servers
   * saveTransaction.sh - save a sample Transaction
   * startAppservers.sh - start multiple app server instances for load testing
   * testPipeline.sh - test pipelining
-  * updateTransactionStatus.sh - generate new transactions to move all of one transaction Status up to the next transaction status. Parameter is target status.  Can choose SETTLED or POSTED.  
+  * updateTransactionStatus.sh - generate new transactions to move all transactions from one transaction Status up to the next transaction status. Parameter is target status.  Can choose SETTLED or POSTED.  Will move 100,000 transactions per call
