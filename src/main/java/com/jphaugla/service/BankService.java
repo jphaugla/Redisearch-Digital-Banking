@@ -15,6 +15,8 @@ import com.jphaugla.repository.*;
 
 import com.redislabs.mesclun.search.*;
 import com.redislabs.mesclun.StatefulRedisModulesConnection;
+import com.redislabs.mesclun.search.aggregate.GroupBy;
+import com.redislabs.mesclun.search.aggregate.reducers.Count;
 
 import io.lettuce.core.RedisCommandExecutionException;
 import org.joda.time.DateTime;
@@ -162,7 +164,8 @@ public class BankService {
 	private List<String> getTransactionByStatus(String transactionStatus) throws ExecutionException, InterruptedException {
 		RediSearchCommands<String, String> commands = connection.sync();
 		String queryString = "@status:" + transactionStatus;
-		SearchResults<String, String> results = commands.search(transactionSearchIndexName, queryString);
+		SearchOptions searchOptions = SearchOptions.builder().limit(SearchOptions.Limit.offset(0).num(100000)).clearReturnFields().build();
+		SearchResults<String, String> results = commands.search(transactionSearchIndexName, queryString, searchOptions);
 		// this code snippet get converts results to List of Transaction IDs
 		List<String> transIdList = new ArrayList<String>();
 		for (Document document : results) {
@@ -187,7 +190,6 @@ public class BankService {
 	public void transactionStatusChange(String targetStatus) throws IllegalAccessException, ExecutionException, InterruptedException {
 		//  move target from authorized->settled->posted
 		logger.info("transactionStatusChange targetStatus is " + targetStatus);
-		BankGenerator.Timer transTimer = new BankGenerator.Timer();
 		SearchResults<String, String>  documents;
 		CompletableFuture<Integer> transaction_cntr = null;
 		List<String> transIdList = new ArrayList<String>();
@@ -208,10 +210,7 @@ public class BankService {
 				redisTemplate.opsForHash().put(transactionSearchIndexName + ':' + tranID, "settlementDate", stringUnixTime);
 			}
 		}
-		transaction_cntr.get();
-		transTimer.end();
-		logger.info("Finished updating " + transIdList.size() + " transactions in " +
-				transTimer.getTimeTakenSeconds() + " seconds.");
+		logger.info("Finished updating " + transIdList.size());
 	}
 	public String getDateToFromQueryString(Date startDate, Date endDate) throws ParseException {
 		/* Date toDate = new SimpleDateFormat("MM/dd/yyyy").parse(to);
@@ -344,8 +343,8 @@ public class BankService {
 		}
 		return reportList;
 	}
-	public List<String> transactionStatusReport() {
-		List<String> reportList = new ArrayList<>();
+	public AggregateResults<String>  transactionStatusReport() {
+		// List<String> reportList = new ArrayList<>();
 		/*  slow as mud
 		int postedTotal = transactionRepository.findByStatus("POSTED").size();
 		hashMap.put("POSTED", postedTotal);
@@ -353,7 +352,7 @@ public class BankService {
 		hashMap.put("SETTLED", settledTotal);
 		int authorizedTotal = transactionRepository.findByStatus("AUTHORIZED").size();
 		hashMap.put("AUTHORIZED", authorizedTotal);
-		 */
+
 		String [] statuses = {"POSTED", "SETTLED", "AUTHORIZED"};
 		String reportLine=null;
 		for (String i:statuses) {
@@ -362,6 +361,13 @@ public class BankService {
 			reportList.add(reportLine);
 		}
 		return reportList;
+
+		 */
+
+		RediSearchCommands<String, String> commands = connection.sync();
+		AggregateResults<String> aggregateResults = commands.aggregate(transactionSearchIndexName, "*",
+				AggregateOptions.builder().load("status").operation(GroupBy.properties("status").reducer(Count.as("COUNT")).build()).build());
+		return (aggregateResults);
 	}
 
 

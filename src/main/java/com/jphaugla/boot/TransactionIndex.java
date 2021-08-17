@@ -44,7 +44,7 @@ public class TransactionIndex implements CommandLineRunner {
         Field accountNo = Field.text("accountNo").build();
         Field amountType = Field.text("amountType").build();
         Field merchantAccount = Field.text("merchant").build();
-        Field status = Field.text("status").build();
+        Field status = Field.text("status").sortable(true).build();
         Field description = Field.text("description").build();
         Field referenceKeyType = Field.text("referenceKeyType").build();
         Field referenceValue = Field.text("referenceValue").build();

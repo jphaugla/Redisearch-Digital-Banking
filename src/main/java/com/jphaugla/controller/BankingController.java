@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutionException;
 
 import com.jphaugla.domain.*;
 
+import com.redislabs.mesclun.search.AggregateResults;
 import com.redislabs.mesclun.search.SearchResults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,8 +123,8 @@ public class BankingController {
 
 	@GetMapping ("/transactionStatusReport")
 
-	public List<String> transactionStatusReport () {
-		List<String> keycounts = new ArrayList<>();
+	public AggregateResults<String>  transactionStatusReport () {
+		AggregateResults<String> keycounts = new AggregateResults<>();
 		keycounts = bankService.transactionStatusReport();
 		return keycounts;
 	}
@@ -137,16 +138,17 @@ public class BankingController {
 
 	@GetMapping("/statusChangeTransactions")
 
-	public List<String> generateStatusChangeTransactions(@RequestParam String transactionStatus)
+	public AggregateResults<String> generateStatusChangeTransactions(@RequestParam String transactionStatus)
 			throws ParseException, IllegalAccessException, ExecutionException, InterruptedException {
-		 logger.debug("generateStatusChangeTransactions transactionStatus=" + transactionStatus);
-		 ArrayList<String> changeReport = new ArrayList<>();
-		 changeReport.add("Before Change");
+		 logger.info("generateStatusChangeTransactions transactionStatus=" + transactionStatus);
+		 AggregateResults<String> changeReport = new AggregateResults<>();
+
 		 changeReport.addAll(transactionStatusReport());
 		 bankService.transactionStatusChange(transactionStatus);
-		 changeReport.add("After Change");
 		 changeReport.addAll(transactionStatusReport());
+
 		 return changeReport;
+
 	}
 
 	@GetMapping("/creditCardTransactions")
