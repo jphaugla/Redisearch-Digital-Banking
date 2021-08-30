@@ -1,7 +1,8 @@
 # Redisearch-Digital-Banking
-Provides a quick-start example of using Redis with springBoot with Banking structures.  Digital Banking uses an API microservices approach to enable high speed requests for account, customer and transaction information.  As seem below, this data is useful for a variety of business purposes in the bank.
+Provides a quick-start example of using Redis with springBoot with Banking structures.  Digital Banking uses an API microservices approach to enable high speed requests for account, customer and transaction information.  As seen below, this data is useful for a variety of business purposes in the bank.
 <a href="" rel="Digital Banking"><img src="images/DigitalBanking.png" alt="" /></a>
-This is the same as Redis-Digital-Banking but will not use any Spring indexes.  Instead redisearch 2.0 indexes will be used
+
+### Note:  This is the same as Redis-Digital-Banking but will not use any Spring crudrepository indexes.  Instead redisearch 2.0 indexes will be used.  This is still using the crudrepository for the basic redis data.  
 
 ## Overview
 In this tutorial, a java spring boot application is run through a jar file to support typical API calls to a REDIS banking data layer.  A redis docker configuration is included.
@@ -45,7 +46,7 @@ This is basic spring links
 * *controller*-http API call interfaces
 * *data*-code to generate POC type of customer, account, and transaction code
 * *domain*-has each of the java objects with their columns.  Enables all the getter/setter methods
-* *repository*-has CRUD repository definitions.  With transition to redisearch 2.0, not used as heavily as previously
+* *repository*-has CRUD repository definitions.  With transition to redisearch 2.0, not used as heavily as previously.  This is where the redistemplate code is added if crud repository is no longer used.
 * *service*-asyncservice and bankservice doing the interaction with redis
 ### 
 The java code demonstrates common API actions with the data layer in REDIS.  The java spring Boot framework minimizes the amount of code to build and maintain this solution.  Maven is used to build the java code and the code is deployed to the tomcat server.
@@ -84,7 +85,7 @@ java -jar target/redis-0.0.1-SNAPSHOT.jar
 Shows a benchmark test run of  generateData.sh on GCP servers.  Although, this test run is using redisearch 1.0 code base.  Need to rerun this test.
 <a href="" rel="Generate Data Benchmark"><img src="images/Benchmark.png" alt="" /></a>
 
-4.  Investigate the APIs in ./scripts
+4.  Investigate the APIs in ./scripts.  Adding the redisearch queries behind each script here also...
   * addTag.sh - add a tag to a transaction.  Tags allow user to mark  transactions to be in a buckets such as Travel or Food for budgetary tracking purposes
   * generateData.sh - simple API to generate default customer, accounts, merchants, phone numbers, emails and transactions
   * generateLots.sh - for server testing to generate higher load levels.  Use with startAppservers.sh.  Not for use with docker setup.  This is load testing with redis enterprise and client application running in same network in the cloud.
